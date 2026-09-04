@@ -1,3 +1,4 @@
+
 """
 =====================================================================
 SIH26001 — Landslide Early Warning System — Backend Server
@@ -6,27 +7,27 @@ Ye backend 3 kaam karta hai:
   1. Risk scores store aur serve karna (map ke liye)
   2. Field reports (citizen/officer se aaye reports) accept karna
   3. Risk score calculate karna (Shivam ke formula ke logic se)
-
+ 
 Member: Samiya Khan
 Tech: Python + Flask + SQLite
 =====================================================================
 """
-
+ 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
 import os
 import datetime
 import uuid
-
+ 
 app = Flask(__name__)
 CORS(app)  # Frontend (map/form) kisi bhi domain se is backend ko call kar sake, isliye
-
+ 
 DB_PATH = os.path.join(os.path.dirname(__file__), "landslide.db")
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-
+ 
+ 
 # =====================================================================
 # DATABASE SETUP
 # =====================================================================
@@ -35,13 +36,13 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row  # Rows ko dictionary jaisa access karne dega
     return conn
-
-
+ 
+ 
 def init_db():
     """Pehli baar chalane par tables bana deta hai (agar already na ho)."""
     conn = get_db()
     cur = conn.cursor()
-
+ 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS risk_scores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +62,7 @@ def init_db():
             last_updated TEXT
         )
     """)
-
+ 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS field_reports (
             id TEXT PRIMARY KEY,
@@ -77,11 +78,11 @@ def init_db():
             created_at TEXT
         )
     """)
-
+ 
     conn.commit()
     conn.close()
-
-
+ 
+ 
 # =====================================================================
 # RISK SCORE FORMULA
 # (Shivam Rana ke formula ka logic — yahan backend mein bhi rakha hai
@@ -92,7 +93,7 @@ def calculate_risk_score(slope_degree, rainfall_24h_mm, rainfall_antecedent_mm,
     """
     Evidence-based risk score (0-100), built from Saif Khan's verified Aizawl
     research (Barman & Das 2024; Mizoram SDMP 2020; Sangi et al. 2025).
-
+ 
     INPUTS (documented so the team can explain every number to judges):
       slope_degree          -> terrain slope in degrees (0-90).
                                 Source: Barman & Das (2024) list slope as a core factor.
@@ -115,7 +116,7 @@ def calculate_risk_score(slope_degree, rainfall_24h_mm, rainfall_antecedent_mm,
                                 repeatedly linked to slope instability in Aizawl studies.
       landuse_score           -> 0-10 rating of human modification / land-use disturbance.
       drainage_score          -> 0-10 rating of poor drainage / wetness (TWI proxy).
-
+ 
     IMPORTANT (do not remove this note): The WEIGHTS below are our own prototype
     assumption, built from the relative "priority tier" Saif's research assigned
     to each factor (High priority: slope, rainfall, geology, road-distance;
@@ -127,20 +128,20 @@ def calculate_risk_score(slope_degree, rainfall_24h_mm, rainfall_antecedent_mm,
     calibration needs a larger validated dataset."
     """
     slope_component = min(slope_degree / 60 * 100, 100)
-
+ 
     # Rainfall trigger: scaled against the one real documented Aizawl trigger (205mm/24h)
     rainfall_trigger = min(rainfall_24h_mm / 205 * 100, 100)
     # Antecedent rainfall adds saturation risk, capped at 100
     antecedent_component = min(rainfall_antecedent_mm / 100 * 100, 100)
     rainfall_component = (rainfall_trigger * 0.7) + (antecedent_component * 0.3)
-
+ 
     # Closer to road = higher risk (within 500m = max, per Barman & Das road-proximity finding)
     road_component = max(0, 100 - min(road_distance_m / 500 * 100, 100))
-
+ 
     geology_component = min(geology_score / 10 * 100, 100)
     landuse_component = min(landuse_score / 10 * 100, 100)
     drainage_component = min(drainage_score / 10 * 100, 100)
-
+ 
     score = (
         rainfall_component * 0.30 +
         slope_component * 0.20 +
@@ -150,7 +151,7 @@ def calculate_risk_score(slope_degree, rainfall_24h_mm, rainfall_antecedent_mm,
         drainage_component * 0.10
     )
     score = round(min(max(score, 0), 100), 1)
-
+ 
     if score >= 80:
         level = "Critical"
     elif score >= 60:
@@ -159,10 +160,10 @@ def calculate_risk_score(slope_degree, rainfall_24h_mm, rainfall_antecedent_mm,
         level = "Moderate"
     else:
         level = "Low"
-
+ 
     return score, level
-
-
+ 
+ 
 # =====================================================================
 # ROUTES — RISK SCORES
 # =====================================================================
@@ -173,8 +174,8 @@ def get_risk_scores():
     rows = conn.execute("SELECT * FROM risk_scores").fetchall()
     conn.close()
     return jsonify([dict(row) for row in rows])
-
-
+ 
+ 
 @app.route("/api/risk-scores", methods=["POST"])
 def add_or_update_risk_score():
     """
@@ -194,20 +195,20 @@ def add_or_update_risk_score():
     }
     """
     data = request.get_json()
-
+ 
     required = ["area_name", "latitude", "longitude", "slope_degree", "rainfall_24h_mm",
                 "rainfall_antecedent_mm", "road_distance_m", "geology_score",
                 "landuse_score", "drainage_score"]
     missing = [f for f in required if f not in data]
     if missing:
         return jsonify({"error": f"Missing fields: {missing}"}), 400
-
+ 
     score, level = calculate_risk_score(
         data["slope_degree"], data["rainfall_24h_mm"], data["rainfall_antecedent_mm"],
         data["road_distance_m"], data["geology_score"], data["landuse_score"],
         data["drainage_score"]
     )
-
+ 
     conn = get_db()
     conn.execute("""
         INSERT INTO risk_scores
@@ -224,10 +225,10 @@ def add_or_update_risk_score():
     ))
     conn.commit()
     conn.close()
-
+ 
     return jsonify({"area_name": data["area_name"], "risk_score": score, "risk_level": level}), 201
-
-
+ 
+ 
 # =====================================================================
 # ROUTES — FIELD REPORTS
 # =====================================================================
@@ -246,8 +247,8 @@ def is_duplicate_report(conn, lat, lng, observation_type, minutes_window=60):
         AND created_at > ?
     """, (observation_type, lat, lng, cutoff)).fetchone()
     return existing is not None
-
-
+ 
+ 
 @app.route("/api/reports", methods=["POST"])
 def submit_report():
     """
@@ -260,13 +261,13 @@ def submit_report():
     missing = [f for f in required if f not in form]
     if missing:
         return jsonify({"error": f"Missing fields: {missing}"}), 400
-
+ 
     lat = float(form["latitude"])
     lng = float(form["longitude"])
     obs_type = form["observation_type"]
-
+ 
     conn = get_db()
-
+ 
     # Spam/duplicate check
     if is_duplicate_report(conn, lat, lng, obs_type):
         conn.close()
@@ -274,7 +275,7 @@ def submit_report():
             "warning": "Similar report already submitted recently from this location.",
             "status": "duplicate_flagged"
         }), 200
-
+ 
     # Photo save karo agar bheja gaya ho
     photo_filename = None
     if "photo" in request.files:
@@ -283,9 +284,9 @@ def submit_report():
             ext = os.path.splitext(photo.filename)[1]
             photo_filename = f"{uuid.uuid4().hex}{ext}"
             photo.save(os.path.join(UPLOAD_FOLDER, photo_filename))
-
+ 
     report_id = uuid.uuid4().hex
-
+ 
     conn.execute("""
         INSERT INTO field_reports
         (id, reporter_name, reporter_type, latitude, longitude,
@@ -304,10 +305,10 @@ def submit_report():
     ))
     conn.commit()
     conn.close()
-
+ 
     return jsonify({"id": report_id, "status": "pending_verification"}), 201
-
-
+ 
+ 
 @app.route("/api/reports", methods=["GET"])
 def get_reports():
     """Sab field reports deta hai — admin dashboard isse call karega."""
@@ -315,8 +316,8 @@ def get_reports():
     rows = conn.execute("SELECT * FROM field_reports ORDER BY created_at DESC").fetchall()
     conn.close()
     return jsonify([dict(row) for row in rows])
-
-
+ 
+ 
 @app.route("/api/reports/<report_id>/verify", methods=["PATCH"])
 def verify_report(report_id):
     """
@@ -327,24 +328,35 @@ def verify_report(report_id):
     new_status = data.get("status")
     if new_status not in ["verified", "rejected", "pending_verification"]:
         return jsonify({"error": "Invalid status"}), 400
-
+ 
     conn = get_db()
     conn.execute("UPDATE field_reports SET status = ? WHERE id = ?", (new_status, report_id))
     conn.commit()
     conn.close()
     return jsonify({"id": report_id, "status": new_status})
-
-
+ 
+ 
 # =====================================================================
 # HEALTH CHECK (deployment verify karne ke liye)
 # =====================================================================
 @app.route("/", methods=["GET"])
 def health():
     return jsonify({"status": "running", "service": "SIH26001 Landslide Backend"})
-
-
+ 
+ 
 # =====================================================================
+# =====================================================================
+# Database table hamesha bana do jab bhi ye file import ho —
+# (chahe 'python app.py' se chale, chahe gunicorn se — Render gunicorn
+#  use karta hai, jo __main__ block kabhi nahi chalata)
+# =====================================================================
+init_db()
+ 
 if __name__ == "__main__":
-    init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+ 
+
+
+
+
