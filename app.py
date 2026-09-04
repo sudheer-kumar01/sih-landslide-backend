@@ -48,9 +48,13 @@ def init_db():
             area_name TEXT NOT NULL,
             latitude REAL NOT NULL,
             longitude REAL NOT NULL,
-            rainfall_mm REAL,
             slope_degree REAL,
-            history_score REAL,
+            rainfall_24h_mm REAL,
+            rainfall_antecedent_mm REAL,
+            road_distance_m REAL,
+            geology_score REAL,
+            landuse_score REAL,
+            drainage_score REAL,
             risk_score REAL,
             risk_level TEXT,
             data_source TEXT DEFAULT 'SAMPLE',
@@ -83,27 +87,67 @@ def init_db():
 # (Shivam Rana ke formula ka logic — yahan backend mein bhi rakha hai
 #  taaki server khud bhi score calculate kar sake, sirf frontend pe nahi)
 # =====================================================================
-def calculate_risk_score(rainfall_mm, slope_degree, history_score):
+def calculate_risk_score(slope_degree, rainfall_24h_mm, rainfall_antecedent_mm,
+                          road_distance_m, geology_score, landuse_score, drainage_score):
     """
-    Teen input leta hai aur 0-100 ka risk score deta hai.
+    Evidence-based risk score (0-100), built from Saif Khan's verified Aizawl
+    research (Barman & Das 2024; Mizoram SDMP 2020; Sangi et al. 2025).
 
-    rainfall_mm     -> pichle 24 ghante ki barish (mm mein)
-    slope_degree    -> zameen ka dhalaan (degree mein, 0-90)
-    history_score   -> purani landslide history ka score (0-10, jitna zyada utna risky)
+    INPUTS (documented so the team can explain every number to judges):
+      slope_degree          -> terrain slope in degrees (0-90).
+                                Source: Barman & Das (2024) list slope as a core factor.
+      rainfall_24h_mm        -> rainfall in the last 24 hours (mm).
+                                Threshold reference: Cyclone Remal recorded 205mm in 24h
+                                before the 28 May 2024 Aizawl landslide cluster
+                                (Sangi et al. 2025). We use 205mm as our "high trigger"
+                                reference point -- NOT a universal threshold, just the
+                                one real documented Aizawl trigger event we have.
+      rainfall_antecedent_mm -> rainfall in the preceding 3-4 days (mm), captures soil
+                                saturation build-up. Sangi et al. 2025 record the
+                                24-28 May 2024 sequence: 2.2, 8.2, 21.8, 80mm before
+                                the 205mm trigger day.
+      road_distance_m        -> distance of the location from the nearest road (metres).
+                                Barman & Das (2024) report distance-to-road as the
+                                HIGHEST predictive factor in their Aizawl model
+                                (closer to road/road-cutting = higher risk).
+      geology_score          -> 0-10 rating of geological/lithological weakness
+                                (fractured/weak rock = higher score). Source: geology
+                                repeatedly linked to slope instability in Aizawl studies.
+      landuse_score           -> 0-10 rating of human modification / land-use disturbance.
+      drainage_score          -> 0-10 rating of poor drainage / wetness (TWI proxy).
 
-    NOTE: Weights abhi ASSUMPTION hain, real calibration ke liye
-    Saif Khan ke research data se adjust karna hai.
+    IMPORTANT (do not remove this note): The WEIGHTS below are our own prototype
+    assumption, built from the relative "priority tier" Saif's research assigned
+    to each factor (High priority: slope, rainfall, geology, road-distance;
+    Medium-high: land use, drainage). These are NOT the exact numeric weights from
+    any single paper -- the old local case-study weights (9-8-7-6-5-4) are
+    explicitly flagged in the research pack as study-specific, not official.
+    If asked by judges: "Weights are our prototype design, informed by which
+    factors the Aizawl literature repeatedly identifies as important -- final
+    calibration needs a larger validated dataset."
     """
-    # Har factor ko 0-100 scale par normalize karo
-    rainfall_component = min(rainfall_mm / 200 * 100, 100)   # 200mm+ = max risk
-    slope_component = min(slope_degree / 60 * 100, 100)       # 60 degree+ = max risk
-    history_component = min(history_score / 10 * 100, 100)    # 10/10 = max risk
+    slope_component = min(slope_degree / 60 * 100, 100)
 
-    # Weighted combination (weights: rainfall 40%, slope 35%, history 25%)
+    # Rainfall trigger: scaled against the one real documented Aizawl trigger (205mm/24h)
+    rainfall_trigger = min(rainfall_24h_mm / 205 * 100, 100)
+    # Antecedent rainfall adds saturation risk, capped at 100
+    antecedent_component = min(rainfall_antecedent_mm / 100 * 100, 100)
+    rainfall_component = (rainfall_trigger * 0.7) + (antecedent_component * 0.3)
+
+    # Closer to road = higher risk (within 500m = max, per Barman & Das road-proximity finding)
+    road_component = max(0, 100 - min(road_distance_m / 500 * 100, 100))
+
+    geology_component = min(geology_score / 10 * 100, 100)
+    landuse_component = min(landuse_score / 10 * 100, 100)
+    drainage_component = min(drainage_score / 10 * 100, 100)
+
     score = (
-        rainfall_component * 0.40 +
-        slope_component * 0.35 +
-        history_component * 0.25
+        rainfall_component * 0.30 +
+        slope_component * 0.20 +
+        road_component * 0.15 +
+        geology_component * 0.15 +
+        landuse_component * 0.10 +
+        drainage_component * 0.10
     )
     score = round(min(max(score, 0), 100), 1)
 
@@ -137,35 +181,44 @@ def add_or_update_risk_score():
     Naya area add karta hai ya existing area ka score recalculate karta hai.
     Expected JSON body:
     {
-        "area_name": "Thuampui",
-        "latitude": 23.7367,
-        "longitude": 92.7050,
-        "rainfall_mm": 120,
+        "area_name": "Laipuitlang",
+        "latitude": 23.735, "longitude": 92.725,
         "slope_degree": 45,
-        "history_score": 8,
-        "data_source": "GSI research paper"   (optional)
+        "rainfall_24h_mm": 120,
+        "rainfall_antecedent_mm": 60,
+        "road_distance_m": 200,
+        "geology_score": 7,
+        "landuse_score": 6,
+        "drainage_score": 5,
+        "data_source": "Barman & Das 2024 + Mizoram SDMP 2020"   (optional but recommended)
     }
     """
     data = request.get_json()
 
-    required = ["area_name", "latitude", "longitude", "rainfall_mm", "slope_degree", "history_score"]
+    required = ["area_name", "latitude", "longitude", "slope_degree", "rainfall_24h_mm",
+                "rainfall_antecedent_mm", "road_distance_m", "geology_score",
+                "landuse_score", "drainage_score"]
     missing = [f for f in required if f not in data]
     if missing:
         return jsonify({"error": f"Missing fields: {missing}"}), 400
 
     score, level = calculate_risk_score(
-        data["rainfall_mm"], data["slope_degree"], data["history_score"]
+        data["slope_degree"], data["rainfall_24h_mm"], data["rainfall_antecedent_mm"],
+        data["road_distance_m"], data["geology_score"], data["landuse_score"],
+        data["drainage_score"]
     )
 
     conn = get_db()
     conn.execute("""
         INSERT INTO risk_scores
-        (area_name, latitude, longitude, rainfall_mm, slope_degree, history_score,
+        (area_name, latitude, longitude, slope_degree, rainfall_24h_mm, rainfall_antecedent_mm,
+         road_distance_m, geology_score, landuse_score, drainage_score,
          risk_score, risk_level, data_source, last_updated)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         data["area_name"], data["latitude"], data["longitude"],
-        data["rainfall_mm"], data["slope_degree"], data["history_score"],
+        data["slope_degree"], data["rainfall_24h_mm"], data["rainfall_antecedent_mm"],
+        data["road_distance_m"], data["geology_score"], data["landuse_score"], data["drainage_score"],
         score, level, data.get("data_source", "SAMPLE"),
         datetime.datetime.now(datetime.timezone.utc).isoformat()
     ))
