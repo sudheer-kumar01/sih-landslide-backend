@@ -65,7 +65,16 @@
   #layer-toggles input[type="checkbox"] { accent-color: #1e3a8a; transform: scale(1.05); transition: transform 0.1s ease; cursor:pointer; }
   #layer-toggles input[type="checkbox"]:active { transform: scale(0.9); }
 
-  #filter-bar { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; display:flex; gap:6px; flex-wrap:wrap; }
+  #filter-header {
+    padding: 8px 12px; font-size:11.5px; font-weight:600; color:#475569; cursor:pointer;
+    display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0;
+    user-select:none;
+  }
+  #filter-arrow { transition: transform 0.2s ease; }
+  #filter-arrow.collapsed { transform: rotate(-90deg); }
+  #filter-bar { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; display:flex; gap:6px; flex-wrap:wrap;
+    max-height: 200px; overflow:hidden; transition: max-height 0.25s ease, padding 0.25s ease; }
+  #filter-bar.collapsed { max-height: 0; padding-top:0; padding-bottom:0; border-bottom:none; }
   .filter-chip { font-size: 11px; padding: 4px 10px; border-radius: 14px; border: 1px solid #cbd5e1; background: white; cursor: pointer; color:#334155; }
   .filter-chip.active { color: white; border-color: transparent; }
   .filter-chip[data-level="All"].active { background:#334155; }
@@ -154,6 +163,22 @@
   #explain-panel .factor-bar-fill { height:100%; border-radius:6px; }
   #explain-panel .source-note { margin-top:14px; font-size:10.5px; color:#94a3b8; border-top:1px solid #e2e8f0; padding-top:10px; }
   #explain-panel .confidence-note { margin-top:8px; font-size:10.5px; color:#b45309; background:#fffbeb; padding:6px 8px; border-radius:6px; }
+
+  #alert-log-panel {
+    position: absolute; top: 16px; right: 16px; width: 310px; background: white;
+    border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 1002;
+    padding: 14px; display: none; max-height: 80%; overflow-y: auto;
+  }
+  #alert-log-panel.open { display: block; animation: panelIn 0.22s ease-out; }
+  #alert-log-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  #alert-log-notice { font-size:10.5px; color:#b45309; background:#fffbeb; padding:8px 10px; border-radius:6px; margin-bottom:10px; }
+  .alert-entry { border-left: 3px solid #ef4444; background:#fef2f2; border-radius:6px; padding:8px 10px; margin-bottom:8px; font-size:11.5px; }
+  .alert-entry.high { border-left-color:#f97316; background:#fff7ed; }
+  .alert-entry .alert-time { color:#94a3b8; font-size:10px; }
+  .alert-entry .alert-title { font-weight:600; color:#0f172a; margin:2px 0; }
+  .alert-entry .alert-recipients { color:#64748b; font-size:10.5px; }
+  #alert-badge { background:#ef4444; color:white; border-radius:10px; padding:1px 6px; font-size:10px; margin-left:4px; }
+  #alert-badge:empty { display:none; }
 
   #basemap-toggle { position:absolute; top:16px; left:72px; z-index:1000; background:white; border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,0.25); overflow:hidden; display:flex; }
   #basemap-toggle button { border:none; background:white; padding:8px 14px; font-size:12px; cursor:pointer; color:#334155; transition: background 0.15s ease, color 0.15s ease; }
@@ -262,6 +287,27 @@
   @keyframes badgePulse { 0%,100%{opacity:1;} 50%{opacity:0.6;} }
   #success-card button { margin-top:16px; padding:10px 20px; border:none; background:#f1f5f9; border-radius:8px;
     color:#334155; font-size:13px; cursor:pointer; }
+  #auth-modal-overlay {
+    position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:3200;
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  #auth-modal-overlay.show { display:flex; animation: fieldIn 0.2s ease-out; }
+  #auth-modal-card {
+    background:#f1f5f9; border-radius:14px; max-width:360px; width:100%; padding:20px;
+    position:relative; animation: successPop 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  #auth-modal-title { margin:0 0 14px 0; font-size:15px; color:#0f172a; text-align:center; }
+  .report-modal-close {
+    position:absolute; top:14px; right:14px; background:#e2e8f0; border:none; width:26px; height:26px;
+    border-radius:50%; cursor:pointer; font-size:12px;
+  }
+  .auth-tabs { display:flex; gap:8px; margin-bottom:14px; }
+  .auth-tab { flex:1; text-align:center; padding:8px; border-radius:8px; cursor:pointer; font-size:12.5px;
+    color:#64748b; background:white; transition: all 0.15s ease; }
+  .auth-tab.active { background:#1e3a8a; color:white; font-weight:600; }
+  #auth-submit-btn { width:100%; padding:12px; background:#1e3a8a; color:white; border:none; border-radius:10px;
+    font-size:14px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
+  #auth-submit-btn:disabled { background:#94a3b8; }
   .error-text { color:#ef4444; font-size:11.5px; margin-top:6px; display:none; }
 
   @media (max-width: 720px) {
@@ -293,6 +339,9 @@
     <div class="stat-box"><span class="stat-num" id="stat-history">0</span><span class="stat-label">Historical Events</span></div>
   </div>
   <div id="topbar-right">
+    <button class="icon-btn" id="auth-btn" onclick="openAuthModal()">🔑 Login</button>
+    <button class="icon-btn" id="lang-toggle-btn" onclick="toggleLanguage()">🌐 EN</button>
+    <button class="icon-btn" id="alert-log-btn" onclick="toggleAlertLog()">🔔 Alerts <span id="alert-badge"></span></button>
     <button class="icon-btn" id="report-hazard-btn" onclick="openReportModal()" style="background:#dc2626;border-color:#dc2626;">📍 Report Hazard</button>
     <button class="icon-btn" id="play-timeline-btn" onclick="playTimeline()">▶ Play History (1992–2024)</button>
     <button class="icon-btn" id="mobile-toggle" onclick="toggleSidebar()">☰ Areas</button>
@@ -313,6 +362,10 @@
     <div id="layer-toggles">
       <label><input type="checkbox" id="toggle-live" checked onchange="renderAreas(currentAreas)"> Current Risk Areas (live)</label>
       <label><input type="checkbox" id="toggle-historical" checked onchange="renderHistorical()"> Historical Events (research)</label>
+    </div>
+    <div id="filter-header" onclick="toggleFilterBar()">
+      <span>Risk Level Filter</span>
+      <span id="filter-arrow">▾</span>
     </div>
     <div id="filter-bar">
       <div class="filter-chip active" data-level="All" onclick="setFilter('All')">All</div>
@@ -372,6 +425,15 @@
       <div id="explain-factors"></div>
       <div id="explain-source" class="source-note"></div>
       <div class="confidence-note">⚠️ Locality-level approximate coordinates &amp; prototype-estimated factor inputs — not GPS-surveyed or field-measured. See methodology note in presentation.</div>
+    </div>
+
+    <div id="alert-log-panel">
+      <div id="alert-log-header">
+        <b>🔔 Alert Log</b>
+        <button class="close-btn" onclick="toggleAlertLog()">✕</button>
+      </div>
+      <div id="alert-log-notice">⚠️ SIMULATED alerts — no real SMS is sent. Shows how the system would notify authorities when a real SMS/telecom gateway is integrated.</div>
+      <div id="alert-log-list"><div class="no-results">No alerts yet — alerts appear when an area's risk becomes High or Critical.</div></div>
     </div>
   </div>
 </div>
@@ -524,6 +586,11 @@
   var historicalRefs = [];
   var currentAreas = [];
   var activeFilter = "All";
+
+  function toggleFilterBar() {
+    document.getElementById('filter-bar').classList.toggle('collapsed');
+    document.getElementById('filter-arrow').classList.toggle('collapsed');
+  }
 
   function setFilter(level) {
     activeFilter = level;
@@ -735,6 +802,7 @@
         var finalData = data.length ? data : FALLBACK_DATA;
         renderAreas(finalData);
         updateStats(finalData);
+        checkAndLogAlerts(finalData);
       })
       .catch(function(err) {
         console.warn("Backend se connect nahi ho paya:", err);
@@ -980,6 +1048,234 @@
 
   updateSyncBanner();
   if (navigator.onLine) trySyncQueue();
+
+  // =====================================================================
+  // ALERT SIMULATION LOG
+  // (Real SIH requirement: "automated alerts to authorities/communities".
+  //  We don't have a real SMS gateway/budget, so this SIMULATES the alert
+  //  trigger + recipient logic honestly — clearly labeled as simulated.)
+  // =====================================================================
+  var alertLog = [];
+  var previousLevels = {};
+
+  function checkAndLogAlerts(areas) {
+    var newAlerts = 0;
+    areas.forEach(function(area) {
+      var prev = previousLevels[area.area_name];
+      if ((area.risk_level === 'Critical' || area.risk_level === 'High') && prev !== area.risk_level) {
+        alertLog.unshift({
+          time: new Date(),
+          area: area.area_name,
+          level: area.risk_level,
+          score: area.risk_score
+        });
+        if (alertLog.length > 25) alertLog.pop();
+        newAlerts++;
+      }
+      previousLevels[area.area_name] = area.risk_level;
+    });
+    if (newAlerts > 0) renderAlertLog();
+  }
+
+  function renderAlertLog() {
+    var badge = document.getElementById('alert-badge');
+    badge.textContent = alertLog.length > 0 ? alertLog.length : "";
+
+    var listEl = document.getElementById('alert-log-list');
+    if (alertLog.length === 0) {
+      listEl.innerHTML = "<div class='no-results'>No alerts yet — alerts appear when an area's risk becomes High or Critical.</div>";
+      return;
+    }
+    var html = "";
+    alertLog.forEach(function(a) {
+      var cls = a.level === 'Critical' ? '' : 'high';
+      html += "<div class='alert-entry " + cls + "'>" +
+        "<div class='alert-time'>" + a.time.toLocaleTimeString() + "</div>" +
+        "<div class='alert-title'>" + a.level.toUpperCase() + " — " + a.area + " (" + a.score + "/100)</div>" +
+        "<div class='alert-recipients'>📨 Simulated SMS/app notification sent to: District Disaster Management Authority, local Village Council</div>" +
+        "</div>";
+    });
+    listEl.innerHTML = html;
+  }
+
+  function toggleAlertLog() {
+    document.getElementById('alert-log-panel').classList.toggle('open');
+  }
+
+  // =====================================================================
+  // LANGUAGE TOGGLE (English / Hindi)
+  // NOTE: Mizo (the local language for Aizawl) is NOT included here —
+  // machine-translating technical dashboard terms into Mizo without a
+  // native speaker risks incorrect/embarrassing phrasing. VERIFY REQUIRED:
+  // get a Mizo-speaking team member or local contact to review before
+  // adding a Mizo option.
+  // =====================================================================
+  var currentLang = 'en';
+  var translations = {
+    en: {
+      title: "🏔️ Aizawl Landslide Risk Map", subtitle: "SIH26001 — MDoNER Early Warning System",
+      reportBtn: "📍 Report Hazard", playBtn: "▶ Play History (1992–2024)", areasBtn: "☰ Areas", fullscreenBtn: "⛶ Fullscreen",
+      searchPlaceholder: "Search area name...", layerLive: "Current Risk Areas (live)", layerHistorical: "Historical Events (research)",
+      filterAll: "All", filterLow: "Low", filterModerate: "Moderate", filterHigh: "High", filterCritical: "Critical",
+      areasLabel: "AREAS (click for details)", legendTitle: "Risk Level", legendHistorical: "Historical event",
+      statusTitle: "System / Data Status", statTotal: "Areas Monitored", statCritical: "Critical Now", statHistory: "Historical Events"
+    },
+    hi: {
+      title: "🏔️ आइज़ोल भूस्खलन जोखिम मानचित्र", subtitle: "SIH26001 — MDoNER पूर्व चेतावनी प्रणाली",
+      reportBtn: "📍 खतरे की सूचना दें", playBtn: "▶ इतिहास चलाएं (1992–2024)", areasBtn: "☰ क्षेत्र", fullscreenBtn: "⛶ पूर्ण स्क्रीन",
+      searchPlaceholder: "क्षेत्र का नाम खोजें...", layerLive: "वर्तमान जोखिम क्षेत्र (लाइव)", layerHistorical: "ऐतिहासिक घटनाएं (शोध)",
+      filterAll: "सभी", filterLow: "कम", filterModerate: "मध्यम", filterHigh: "उच्च", filterCritical: "गंभीर",
+      areasLabel: "क्षेत्र (विवरण के लिए क्लिक करें)", legendTitle: "जोखिम स्तर", legendHistorical: "ऐतिहासिक घटना",
+      statusTitle: "सिस्टम / डेटा स्थिति", statTotal: "निगरानी क्षेत्र", statCritical: "अभी गंभीर", statHistory: "ऐतिहासिक घटनाएं"
+    }
+  };
+
+  function toggleLanguage() {
+    currentLang = currentLang === 'en' ? 'hi' : 'en';
+    applyLanguage();
+  }
+
+  function applyLanguage() {
+    var t = translations[currentLang];
+    document.getElementById('lang-toggle-btn').textContent = currentLang === 'en' ? "🌐 EN" : "🌐 हिं";
+    document.querySelector('#topbar h1').textContent = t.title;
+    document.querySelector('#topbar .subtitle').textContent = t.subtitle;
+    document.getElementById('report-hazard-btn').textContent = t.reportBtn;
+    document.getElementById('play-timeline-btn').textContent = timelinePlaying ? document.getElementById('play-timeline-btn').textContent : t.playBtn;
+    document.getElementById('mobile-toggle').textContent = t.areasBtn;
+    document.getElementById('search-input').placeholder = t.searchPlaceholder;
+    var layerLabels = document.querySelectorAll('#layer-toggles label');
+    layerLabels[0].lastChild.textContent = " " + t.layerLive;
+    layerLabels[1].lastChild.textContent = " " + t.layerHistorical;
+    document.querySelector('[data-level="All"]').textContent = t.filterAll;
+    document.querySelector('[data-level="Low"]').textContent = t.filterLow;
+    document.querySelector('[data-level="Moderate"]').textContent = t.filterModerate;
+    document.querySelector('[data-level="High"]').textContent = t.filterHigh;
+    document.querySelector('[data-level="Critical"]').textContent = t.filterCritical;
+    document.getElementById('area-list-label').textContent = t.areasLabel;
+    document.querySelector('.legend b').textContent = t.legendTitle;
+    document.getElementById('status-panel').querySelector('b').textContent = t.statusTitle;
+    document.querySelector('.stat-box:nth-child(1) .stat-label').textContent = t.statTotal;
+    document.querySelector('.stat-box:nth-child(2) .stat-label').textContent = t.statCritical;
+    document.querySelector('.stat-box:nth-child(3) .stat-label').textContent = t.statHistory;
+  }
+
+  // =====================================================================
+  // AUTH — Login/Signup for Field Officers & Authorities
+  // (Prototype-level: hashed passwords server-side, signed tokens.
+  //  Right now this only demonstrates login/signup working end-to-end;
+  //  it isn't yet wired to a full authority-review dashboard — that is
+  //  a separate, larger piece of work.)
+  // =====================================================================
+  var authTab = 'login';
+  var authRole = 'field_officer';
+  const AUTH_TOKEN_KEY = 'sih_auth_token';
+
+  function setAuthRole(el) {
+    el.parentElement.querySelectorAll('.toggle-btn').forEach(function(b){ b.classList.remove('active'); });
+    el.classList.add('active');
+    authRole = el.dataset.value;
+  }
+
+  function setAuthTab(tab, el) {
+    authTab = tab;
+    document.querySelectorAll('.auth-tab').forEach(function(t){ t.classList.remove('active'); });
+    el.classList.add('active');
+    document.getElementById('auth-role-group').style.display = tab === 'signup' ? 'block' : 'none';
+    document.getElementById('auth-submit-text').textContent = tab === 'signup' ? 'Create Account' : 'Login';
+    document.getElementById('auth-error').style.display = 'none';
+  }
+
+  function openAuthModal() {
+    document.getElementById('auth-modal-overlay').classList.add('show');
+    refreshAuthUI();
+  }
+  function closeAuthModal() { document.getElementById('auth-modal-overlay').classList.remove('show'); }
+
+  function getAuthToken() { return localStorage.getItem(AUTH_TOKEN_KEY); }
+
+  function refreshAuthUI() {
+    var token = getAuthToken();
+    var savedUser = localStorage.getItem('sih_auth_user');
+    var savedRole = localStorage.getItem('sih_auth_role');
+    var loggedInView = document.getElementById('auth-loggedin-view');
+    var formFields = document.querySelectorAll('#auth-modal-card .field-group, .auth-tabs, #auth-submit-btn');
+
+    if (token && savedUser) {
+      loggedInView.style.display = 'block';
+      formFields.forEach(function(f){ f.style.display = 'none'; });
+      document.getElementById('auth-loggedin-name').textContent = savedUser;
+      document.getElementById('auth-loggedin-role').textContent = savedRole === 'authority' ? '🏛️ Authority' : '🦺 Field Officer';
+      document.getElementById('auth-btn').textContent = "👤 " + savedUser;
+    } else {
+      loggedInView.style.display = 'none';
+      formFields.forEach(function(f){ f.style.display = ''; });
+      document.getElementById('auth-role-group').style.display = authTab === 'signup' ? 'block' : 'none';
+      document.getElementById('auth-btn').textContent = "🔑 Login";
+    }
+  }
+
+  function submitAuth() {
+    var username = document.getElementById('auth-username').value.trim();
+    var password = document.getElementById('auth-password').value;
+    var errorEl = document.getElementById('auth-error');
+    errorEl.style.display = 'none';
+
+    if (username.length < 3 || password.length < 6) {
+      errorEl.textContent = "Username must be 3+ chars, password 6+ chars.";
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    var btn = document.getElementById('auth-submit-btn');
+    btn.disabled = true;
+    document.getElementById('auth-spinner').style.display = 'inline-block';
+
+    var endpoint = authTab === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+    var body = authTab === 'signup'
+      ? { username: username, password: password, role: authRole }
+      : { username: username, password: password };
+
+    fetch(BACKEND_URL + endpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    })
+      .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+      .then(function(result) {
+        btn.disabled = false;
+        document.getElementById('auth-spinner').style.display = 'none';
+        if (!result.ok) {
+          errorEl.textContent = result.data.error || "Something went wrong.";
+          errorEl.style.display = 'block';
+          return;
+        }
+        if (authTab === 'signup') {
+          errorEl.style.display = 'none';
+          setAuthTab('login', document.querySelector('.auth-tab'));
+          alert("Account created! Please log in now.");
+        } else {
+          localStorage.setItem(AUTH_TOKEN_KEY, result.data.token);
+          localStorage.setItem('sih_auth_user', result.data.username);
+          localStorage.setItem('sih_auth_role', result.data.role);
+          refreshAuthUI();
+        }
+      })
+      .catch(function() {
+        btn.disabled = false;
+        document.getElementById('auth-spinner').style.display = 'none';
+        errorEl.textContent = "Could not reach server. Check your connection.";
+        errorEl.style.display = 'block';
+      });
+  }
+
+  function logout() {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem('sih_auth_user');
+    localStorage.removeItem('sih_auth_role');
+    refreshAuthUI();
+    closeAuthModal();
+  }
+
+  refreshAuthUI();
 </script>
   <!-- ===================================================================
        REPORT HAZARD MODAL — map aur report form ab EK hi jagah hain
@@ -1069,6 +1365,49 @@
       <div id="success-status-badge">PENDING VERIFICATION</div>
       <br>
       <button onclick="closeSuccess()">Done</button>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       LOGIN / SIGNUP MODAL — Field Officers / Authorities ke liye
+       =================================================================== -->
+  <div id="auth-modal-overlay">
+    <div id="auth-modal-card">
+      <button class="report-modal-close" id="auth-modal-close" onclick="closeAuthModal()">✕</button>
+      <h3 id="auth-modal-title">Field Officer / Authority Login</h3>
+      <div class="auth-tabs">
+        <div class="auth-tab active" onclick="setAuthTab('login', this)">Login</div>
+        <div class="auth-tab" onclick="setAuthTab('signup', this)">Sign Up</div>
+      </div>
+
+      <div id="auth-error" class="error-text"></div>
+
+      <div class="field-group">
+        <div class="field-label">Username</div>
+        <input type="text" id="auth-username" placeholder="e.g. officer_aizawl">
+      </div>
+      <div class="field-group">
+        <div class="field-label">Password</div>
+        <input type="text" id="auth-password" placeholder="At least 6 characters">
+      </div>
+      <div class="field-group" id="auth-role-group">
+        <div class="field-label">Role</div>
+        <div class="toggle-row">
+          <div class="toggle-btn active" data-value="field_officer" onclick="setAuthRole(this)">🦺 Field Officer</div>
+          <div class="toggle-btn" data-value="authority" onclick="setAuthRole(this)">🏛️ Authority</div>
+        </div>
+      </div>
+
+      <button id="auth-submit-btn" onclick="submitAuth()">
+        <span class="spinner" id="auth-spinner"></span>
+        <span id="auth-submit-text">Login</span>
+      </button>
+
+      <div id="auth-loggedin-view" style="display:none; text-align:center; padding:10px 0;">
+        <div style="font-size:14px; font-weight:600;">👤 <span id="auth-loggedin-name"></span></div>
+        <div style="font-size:11.5px; color:#64748b; margin:4px 0 14px 0;" id="auth-loggedin-role"></div>
+        <button onclick="logout()" style="background:#ef4444; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer;">Logout</button>
+      </div>
     </div>
   </div>
 
